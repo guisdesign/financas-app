@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import type { User } from '@supabase/supabase-js'
 import { useFinancas } from '@/hooks/useFinancas'
 import { supabase } from '@/lib/supabase'
@@ -17,9 +17,20 @@ interface Props {
 export default function ModalConfig({ user, fin, onClose }: Props) {
   const [sc, setSc] = useState(fin.cfg.fechamento_sicredi)
   const [nb, setNb] = useState(fin.cfg.fechamento_nubank)
-  const [cats, setCats] = useState<Categoria[]>(fin.cats)
+  const [cats, setCats] = useState<Categoria[]>([])
+  const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [colorIdx, setColorIdx] = useState<number | null>(null)
+
+  // Recarrega as categorias direto do banco ao abrir, para garantir frescor
+  useEffect(() => {
+    async function freshLoad() {
+      const { data } = await supabase.from('categorias').select('*').eq('user_id', user.id).order('ordem')
+      setCats((data || []) as Categoria[])
+      setLoading(false)
+    }
+    freshLoad()
+  }, [user.id])
 
   function updateCat(idx: number, partial: Partial<Categoria>) {
     setCats(prev => prev.map((c, i) => i === idx ? { ...c, ...partial } : c))
@@ -40,10 +51,14 @@ export default function ModalConfig({ user, fin, onClose }: Props) {
 
   async function salvar() {
     if (sc < 1 || sc > 31 || nb < 1 || nb > 31) { alert('Dia inválido'); return }
+    // validar nomes não vazios
+    const limpas = cats.map(c => ({ ...c, nome: c.nome.trim() || 'Sem nome' }))
     setSaving(true)
     try {
       await fin.saveConfig({ fechamento_sicredi: sc, fechamento_nubank: nb })
-      await fin.saveCategorias(cats)
+      await fin.saveCategorias(limpas)
+      // Recarrega tudo para garantir consistência
+      await fin.reload()
       onClose()
     } catch (e) { alert('Erro ao salvar') } finally { setSaving(false) }
   }
@@ -53,6 +68,15 @@ export default function ModalConfig({ user, fin, onClose }: Props) {
     await supabase.auth.signOut()
     location.reload()
   }
+
+  if (loading) return (
+    <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-end justify-center" onClick={onClose}>
+      <div className="bg-white w-full max-w-lg rounded-t-2xl p-8 text-center">
+        <div className="w-8 h-8 border-3 border-slate-200 border-t-primary rounded-full animate-spin mx-auto mb-3" />
+        <div className="text-slate-400 text-sm">Carregando...</div>
+      </div>
+    </div>
+  )
 
   return (
     <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-end justify-center" onClick={onClose}>

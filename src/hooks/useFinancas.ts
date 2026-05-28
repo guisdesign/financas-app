@@ -189,16 +189,34 @@ export function useFinancas(user: User | null) {
     }
   }
 
+  // ── FIX: salvamento de categorias preserva tudo, usa upsert + delete específico ──
   async function saveCategorias(newCats: Categoria[]) {
     if (!user) return
     setSyncing(true)
     try {
-      await supabase.from('categorias').delete().eq('user_id', user.id)
-      await supabase.from('categorias').insert(newCats.map((c, i) => ({ ...c, user_id: user.id, ordem: i })))
+      // Buscar IDs atuais no banco
+      const { data: dbCats } = await supabase.from('categorias').select('id').eq('user_id', user.id)
+      const dbIds = new Set((dbCats || []).map((c: any) => c.id))
+      const newIds = new Set(newCats.map(c => c.id))
+
+      // Apagar só os que foram removidos (estão no banco mas não na nova lista)
+      const idsToDelete = [...dbIds].filter(id => !newIds.has(id))
+      if (idsToDelete.length > 0) {
+        await supabase.from('categorias').delete().eq('user_id', user.id).in('id', idsToDelete)
+      }
+
+      // Upsert dos novos/atualizados
+      const toUpsert = newCats.map((c, i) => ({ ...c, user_id: user.id, ordem: i }))
+      if (toUpsert.length > 0) {
+        await supabase.from('categorias').upsert(toUpsert)
+      }
+
       setCats(newCats)
       setSyncError(false)
     } catch (e) {
-      setSyncError(true); throw e
+      console.error('saveCategorias error:', e)
+      setSyncError(true)
+      throw e
     } finally {
       setSyncing(false)
     }
