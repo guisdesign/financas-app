@@ -51,6 +51,7 @@ export default function TabMes({ user, fin, curMonth, months, onChangeMonth, onO
   const pend = fin.pendentesValor(curMonth)
   const projecao = totalGasto + pend
   const rest = orc - totalGasto
+  const restPos = orc - projecao
   const prr = orc > 0 ? (totalGasto / orc) * 100 : 0
   const prProj = orc > 0 ? (projecao / orc) * 100 : 0
   const pctProj = orc > 0 ? Math.round(prProj) : 0
@@ -134,9 +135,17 @@ export default function TabMes({ user, fin, curMonth, months, onChangeMonth, onO
             <div className="text-4xl font-medium leading-none tracking-tight mb-1">
               {fmt(Math.abs(rest))}
             </div>
-            <div className="text-xs opacity-90 mb-4">
+            <div className="text-xs opacity-90 mb-1">
               de {fmt(orc)} · até {lastDayOfMonth(curMonth)}
             </div>
+
+            {/* Saldo após previstos (linha discreta) */}
+            {pend > 0 && (
+              <div className="text-[11px] opacity-75 mb-3">
+                após previstos: <span className="font-medium">{restPos >= 0 ? fmt(restPos) : '−' + fmt(Math.abs(restPos))}</span>
+              </div>
+            )}
+            {pend === 0 && <div className="mb-3" />}
 
             {/* Barra dupla: gasto sólido + projeção translúcida */}
             <div className="h-1.5 bg-white/25 rounded-full overflow-hidden relative mb-3">
