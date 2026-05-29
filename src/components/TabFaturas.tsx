@@ -2,7 +2,7 @@
 
 import type { User } from '@supabase/supabase-js'
 import { useFinancas } from '@/hooks/useFinancas'
-import { CARTOES, fmt } from '@/lib/types'
+import { CARTOES, fmt, todayLocal } from '@/lib/types'
 import MonthSelector from './MonthSelector'
 
 interface Props {
@@ -24,7 +24,7 @@ export default function TabFaturas({ user, fin, curMonth, months, onChangeMonth 
       const total = ocs.filter(o => o.l.pagamento === cartao).reduce((s, o) => s + o.vp, 0)
       await fin.saveFatura({
         user_id: user.id, cartao, mes_ref: curMonth,
-        valor: total, data_pagamento: new Date().toISOString().slice(0, 10)
+        valor: total, data_pagamento: todayLocal()
       })
     }
   }

@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import type { User } from '@supabase/supabase-js'
 import { useFinancas } from '@/hooks/useFinancas'
-import { fmt, fmtS, mlbl, mlblFull, addMonth, FREQ_LABEL, CLASSES, PAGAMENTOS } from '@/lib/types'
+import { fmt, fmtS, mlbl, mlblFull, addMonth, FREQ_LABEL, CLASSES, PAGAMENTOS, thisMonthLocal } from '@/lib/types'
 import type { Recorrente } from '@/lib/types'
 import MonthSelector from './MonthSelector'
 
@@ -92,7 +92,7 @@ export default function TabPlanejar({ user, fin, curMonth, months, onChangeMonth
         id: edit?.id || crypto.randomUUID(),
         user_id: user.id, nome, valor: v, freq: freq as any,
         categoria: cat, classe: classe as any, casa_rio: casaRio,
-        mes_ref: edit?.mes_ref || new Date().toISOString().slice(0, 7)
+        mes_ref: edit?.mes_ref || thisMonthLocal()
       }
       await fin.saveRecorrente(r)
       setModal(false)

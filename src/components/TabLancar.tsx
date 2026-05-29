@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import type { User } from '@supabase/supabase-js'
 import { useFinancas } from '@/hooks/useFinancas'
-import { PAGAMENTOS, CATS_DEFAULT, fmt, addMonth, mlbl } from '@/lib/types'
+import { PAGAMENTOS, CATS_DEFAULT, fmt, addMonth, mlbl, todayLocal } from '@/lib/types'
 import type { Lancamento, Recorrente } from '@/lib/types'
 
 interface Props {
@@ -18,7 +18,7 @@ interface Props {
 export default function TabLancar({ user, fin, editLanc, confirmPrevKey, onSaved, onCancel }: Props) {
   const [valor, setValor] = useState('')
   const [desc, setDesc] = useState('')
-  const [data, setData] = useState(new Date().toISOString().slice(0, 10))
+  const [data, setData] = useState(todayLocal())
   const [cat, setCat] = useState<string | null>(null)
   const [pay, setPay] = useState<string | null>(null)
   const [parcelas, setParcelas] = useState(1)

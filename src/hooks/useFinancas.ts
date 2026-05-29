@@ -5,7 +5,7 @@ import { supabase } from '@/lib/supabase'
 import type { User } from '@supabase/supabase-js'
 import {
   Lancamento, Recorrente, FaturaPaga, Categoria, Config, PrevStatus,
-  CATS_DEFAULT, addMonth, FREQ_MES
+  CATS_DEFAULT, addMonth, FREQ_MES, thisMonthLocal
 } from '@/lib/types'
 
 export interface PrevItem {
@@ -189,34 +189,16 @@ export function useFinancas(user: User | null) {
     }
   }
 
-  // ── FIX: salvamento de categorias preserva tudo, usa upsert + delete específico ──
   async function saveCategorias(newCats: Categoria[]) {
     if (!user) return
     setSyncing(true)
     try {
-      // Buscar IDs atuais no banco
-      const { data: dbCats } = await supabase.from('categorias').select('id').eq('user_id', user.id)
-      const dbIds = new Set((dbCats || []).map((c: any) => c.id))
-      const newIds = new Set(newCats.map(c => c.id))
-
-      // Apagar só os que foram removidos (estão no banco mas não na nova lista)
-      const idsToDelete = [...dbIds].filter(id => !newIds.has(id))
-      if (idsToDelete.length > 0) {
-        await supabase.from('categorias').delete().eq('user_id', user.id).in('id', idsToDelete)
-      }
-
-      // Upsert dos novos/atualizados
-      const toUpsert = newCats.map((c, i) => ({ ...c, user_id: user.id, ordem: i }))
-      if (toUpsert.length > 0) {
-        await supabase.from('categorias').upsert(toUpsert)
-      }
-
+      await supabase.from('categorias').delete().eq('user_id', user.id)
+      await supabase.from('categorias').insert(newCats.map((c, i) => ({ ...c, user_id: user.id, ordem: i })))
       setCats(newCats)
       setSyncError(false)
     } catch (e) {
-      console.error('saveCategorias error:', e)
-      setSyncError(true)
-      throw e
+      setSyncError(true); throw e
     } finally {
       setSyncing(false)
     }
@@ -279,14 +261,14 @@ export function useFinancas(user: User | null) {
     if (r.freq === 'quinzenal') return 2
     if (r.freq === 'semanal') return 4
     if (r.freq === 'trimestral') {
-      const ref = r.mes_ref || new Date().toISOString().slice(0, 7)
+      const ref = r.mes_ref || thisMonthLocal()
       const [yR, mR] = ref.split('-').map(Number)
       const [y, m] = ym.split('-').map(Number)
       const diff = (y - yR) * 12 + (m - mR)
       return diff >= 0 && diff % 3 === 0 ? 1 : 0
     }
     if (r.freq === 'anual') {
-      const ref = r.mes_ref || new Date().toISOString().slice(0, 7)
+      const ref = r.mes_ref || thisMonthLocal()
       return ym.slice(5, 7) === ref.slice(5, 7) ? 1 : 0
     }
     return 0

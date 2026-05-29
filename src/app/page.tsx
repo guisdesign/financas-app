@@ -5,6 +5,7 @@ import { supabase } from '@/lib/supabase'
 import type { User } from '@supabase/supabase-js'
 import { useFinancas } from '@/hooks/useFinancas'
 import type { Lancamento } from '@/lib/types'
+import { thisMonthLocal } from '@/lib/types'
 import LoginScreen from '@/components/LoginScreen'
 import BottomNav from '@/components/BottomNav'
 import TabLancar from '@/components/TabLancar'
@@ -20,7 +21,7 @@ export default function Home() {
   const [user, setUser] = useState<User | null>(null)
   const [authLoading, setAuthLoading] = useState(true)
   const [tab, setTab] = useState<Tab>('lancar')
-  const [curMonth, setCurMonth] = useState(new Date().toISOString().slice(0, 7))
+  const [curMonth, setCurMonth] = useState(thisMonthLocal())
   const [showConfig, setShowConfig] = useState(false)
   const [showBudget, setShowBudget] = useState(false)
   const [editLanc, setEditLanc] = useState<Lancamento | null>(null)
@@ -61,7 +62,7 @@ export default function Home() {
   }
 
   // Months disponíveis
-  const monthsSet = new Set([curMonth, new Date().toISOString().slice(0, 7)])
+  const monthsSet = new Set([curMonth, thisMonthLocal()])
   fin.lancamentos.forEach(l => fin.gerarOcs(l).forEach(o => monthsSet.add(o.mes)))
   const months = [...monthsSet].sort().reverse()
 

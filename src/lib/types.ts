@@ -120,3 +120,16 @@ export function addMonth(ym: string, n: number): string {
   while (m < 1) { m += 12; y-- }
   return y + '-' + String(m).padStart(2, '0')
 }
+
+// Data local YYYY-MM-DD (não UTC) - corrige bug de fuso horário
+export function todayLocal(): string {
+  const d = new Date()
+  return d.getFullYear() + '-' +
+    String(d.getMonth() + 1).padStart(2, '0') + '-' +
+    String(d.getDate()).padStart(2, '0')
+}
+
+// Mês local YYYY-MM (não UTC)
+export function thisMonthLocal(): string {
+  return todayLocal().slice(0, 7)
+}
