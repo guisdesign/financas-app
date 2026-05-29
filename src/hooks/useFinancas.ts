@@ -56,7 +56,16 @@ export function useFinancas(user: User | null) {
       setOrcs(orcsMap)
 
       if (rC.data) {
-        setCfg({ user_id: user.id, fechamento_sicredi: rC.data.fechamento_sicredi || 5, fechamento_nubank: rC.data.fechamento_nubank || 25, orcamento_default: rC.data.orcamento_default })
+        setCfg({
+          user_id: user.id,
+          fechamento_sicredi: rC.data.fechamento_sicredi || 5,
+          fechamento_nubank: rC.data.fechamento_nubank || 25,
+          vencimento_sicredi: rC.data.vencimento_sicredi ?? 10,
+          vencimento_nubank: rC.data.vencimento_nubank ?? 27,
+          venc_proximo_sicredi: rC.data.venc_proximo_sicredi ?? true,
+          venc_proximo_nubank: rC.data.venc_proximo_nubank ?? false,
+          orcamento_default: rC.data.orcamento_default
+        })
       } else {
         setCfg(c => ({ ...c, user_id: user.id }))
       }
@@ -161,7 +170,7 @@ export function useFinancas(user: User | null) {
     setSyncing(true)
     try {
       if (mes === 'default') {
-        await supabase.from('config').upsert({ user_id: user.id, orcamento_default: valor, fechamento_sicredi: cfg.fechamento_sicredi, fechamento_nubank: cfg.fechamento_nubank })
+        await supabase.from('config').upsert({ ...cfg, user_id: user.id, orcamento_default: valor })
       } else {
         await supabase.from('orcamentos_mes').upsert({ user_id: user.id, mes, valor })
       }
@@ -193,11 +202,21 @@ export function useFinancas(user: User | null) {
     if (!user) return
     setSyncing(true)
     try {
-      await supabase.from('categorias').delete().eq('user_id', user.id)
-      await supabase.from('categorias').insert(newCats.map((c, i) => ({ ...c, user_id: user.id, ordem: i })))
+      const { data: dbCats } = await supabase.from('categorias').select('id').eq('user_id', user.id)
+      const dbIds = new Set((dbCats || []).map((c: any) => c.id))
+      const newIds = new Set(newCats.map(c => c.id))
+      const idsToDelete = [...dbIds].filter(id => !newIds.has(id))
+      if (idsToDelete.length > 0) {
+        await supabase.from('categorias').delete().eq('user_id', user.id).in('id', idsToDelete)
+      }
+      const toUpsert = newCats.map((c, i) => ({ ...c, user_id: user.id, ordem: i }))
+      if (toUpsert.length > 0) {
+        await supabase.from('categorias').upsert(toUpsert)
+      }
       setCats(newCats)
       setSyncError(false)
     } catch (e) {
+      console.error('saveCategorias error:', e)
       setSyncError(true); throw e
     } finally {
       setSyncing(false)
@@ -225,16 +244,37 @@ export function useFinancas(user: User | null) {
 
   // ── COMPUTED HELPERS ──
 
-  function getFechamento(cartao: string) {
-    return cartao.includes('Sicredi') ? cfg.fechamento_sicredi : cfg.fechamento_nubank
+  function getCardCfg(cartao: string) {
+    const isSc = cartao.includes('Sicredi')
+    return {
+      fechamento: isSc ? cfg.fechamento_sicredi : cfg.fechamento_nubank,
+      vencimento: isSc ? (cfg.vencimento_sicredi ?? 10) : (cfg.vencimento_nubank ?? 27),
+      vencProximo: isSc ? (cfg.venc_proximo_sicredi ?? true) : (cfg.venc_proximo_nubank ?? false),
+    }
   }
 
+  function getFechamento(cartao: string) {
+    return getCardCfg(cartao).fechamento
+  }
+
+  // Retorna o mês de VENCIMENTO da fatura (YYYY-MM) em que a compra cai.
+  // offset desloca por N ciclos de fatura (usado em parcelamento).
   function mesFatura(data: string, cartao: string, offset: number): string {
-    const fech = getFechamento(cartao)
+    const { fechamento, vencProximo } = getCardCfg(cartao)
     const d = parseInt(data.slice(8, 10))
-    let base = data.slice(0, 7)
-    if (d > fech) base = addMonth(base, 1)
-    return addMonth(base, offset)
+    // Mês em que a fatura FECHA
+    let mesFech = data.slice(0, 7)
+    if (d > fechamento) mesFech = addMonth(mesFech, 1)
+    // Mês de VENCIMENTO = fechamento (+1 se vence no mês seguinte)
+    const mesVenc = vencProximo ? addMonth(mesFech, 1) : mesFech
+    // Desloca por ciclos (parcelas)
+    return addMonth(mesVenc, offset)
+  }
+
+  // Data de vencimento (DD/MM) de uma fatura cujo mês de vencimento é mesVenc
+  function dataVencimento(cartao: string, mesVenc: string): string {
+    const { vencimento } = getCardCfg(cartao)
+    return String(vencimento).padStart(2, '0') + '/' + mesVenc.slice(5, 7)
   }
 
   function gerarOcs(l: Lancamento) {
@@ -304,7 +344,7 @@ export function useFinancas(user: User | null) {
     saveLancamento, saveRecorrente, saveFatura, saveOrcamento,
     saveConfig, saveCategorias, savePrevisto,
     ocsNoMes, getOrc, gerarOcs, previstosDoMes, valMensalRec,
-    pendentesValor, mesFatura, getFechamento, ocorrenciasMes,
+    pendentesValor, mesFatura, getFechamento, getCardCfg, dataVencimento, ocorrenciasMes,
     reload: loadAll,
   }
 }

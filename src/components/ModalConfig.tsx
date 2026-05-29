@@ -15,14 +15,21 @@ interface Props {
 }
 
 export default function ModalConfig({ user, fin, onClose }: Props) {
-  const [sc, setSc] = useState(fin.cfg.fechamento_sicredi)
-  const [nb, setNb] = useState(fin.cfg.fechamento_nubank)
+  // Fechamento
+  const [scFech, setScFech] = useState(fin.cfg.fechamento_sicredi)
+  const [nbFech, setNbFech] = useState(fin.cfg.fechamento_nubank)
+  // Vencimento
+  const [scVenc, setScVenc] = useState(fin.cfg.vencimento_sicredi ?? 10)
+  const [nbVenc, setNbVenc] = useState(fin.cfg.vencimento_nubank ?? 27)
+  // Vence no mês seguinte ao fechamento?
+  const [scProx, setScProx] = useState(fin.cfg.venc_proximo_sicredi ?? true)
+  const [nbProx, setNbProx] = useState(fin.cfg.venc_proximo_nubank ?? false)
+
   const [cats, setCats] = useState<Categoria[]>([])
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [colorIdx, setColorIdx] = useState<number | null>(null)
 
-  // Recarrega as categorias direto do banco ao abrir, para garantir frescor
   useEffect(() => {
     async function freshLoad() {
       const { data } = await supabase.from('categorias').select('*').eq('user_id', user.id).order('ordem')
@@ -50,14 +57,16 @@ export default function ModalConfig({ user, fin, onClose }: Props) {
   }
 
   async function salvar() {
-    if (sc < 1 || sc > 31 || nb < 1 || nb > 31) { alert('Dia inválido'); return }
-    // validar nomes não vazios
+    if ([scFech, nbFech, scVenc, nbVenc].some(d => d < 1 || d > 31)) { alert('Dia inválido (1 a 31)'); return }
     const limpas = cats.map(c => ({ ...c, nome: c.nome.trim() || 'Sem nome' }))
     setSaving(true)
     try {
-      await fin.saveConfig({ fechamento_sicredi: sc, fechamento_nubank: nb })
+      await fin.saveConfig({
+        fechamento_sicredi: scFech, fechamento_nubank: nbFech,
+        vencimento_sicredi: scVenc, vencimento_nubank: nbVenc,
+        venc_proximo_sicredi: scProx, venc_proximo_nubank: nbProx,
+      })
       await fin.saveCategorias(limpas)
-      // Recarrega tudo para garantir consistência
       await fin.reload()
       onClose()
     } catch (e) { alert('Erro ao salvar') } finally { setSaving(false) }
@@ -84,19 +93,55 @@ export default function ModalConfig({ user, fin, onClose }: Props) {
         <div className="w-10 h-1 bg-slate-300 rounded mx-auto mb-4" />
         <h2 className="text-lg font-bold mb-4">Configurações</h2>
 
-        <h3 className="text-[11px] uppercase tracking-widest text-slate-500 font-bold mb-1">Fechamento das faturas</h3>
-        <p className="text-xs text-slate-400 mb-3">Compras até este dia entram na fatura do mês atual; depois, no próximo.</p>
-        <div className="bg-white border border-slate-200 rounded-xl p-3 mb-4 space-y-2">
-          <div className="flex justify-between items-center py-1">
-            <div className="text-sm font-bold">Sicredi Mastercard Black</div>
-            <input type="number" min="1" max="31" value={sc} onChange={e => setSc(parseInt(e.target.value) || 5)}
+        <h3 className="text-[11px] uppercase tracking-widest text-slate-500 font-bold mb-1">Cartões de crédito</h3>
+        <p className="text-xs text-slate-400 mb-3">Fechamento, vencimento, e se a fatura vence no mês seguinte ao fechamento.</p>
+
+        {/* Sicredi */}
+        <div className="bg-white border border-slate-200 rounded-xl p-3 mb-3">
+          <div className="text-sm font-bold mb-2.5 flex items-center gap-2">
+            <span className="w-2 h-2 rounded-full" style={{ background: '#00833E' }} />
+            Sicredi Mastercard Black
+          </div>
+          <div className="flex justify-between items-center py-1.5">
+            <div className="text-sm text-slate-600">Fecha dia</div>
+            <input type="number" min="1" max="31" value={scFech} onChange={e => setScFech(parseInt(e.target.value) || 1)}
               className="w-16 bg-slate-50 border border-slate-200 rounded-lg p-2 text-center font-bold text-sm" />
           </div>
-          <div className="flex justify-between items-center py-1 border-t border-slate-100 pt-2">
-            <div className="text-sm font-bold">Nubank Platinum</div>
-            <input type="number" min="1" max="31" value={nb} onChange={e => setNb(parseInt(e.target.value) || 25)}
+          <div className="flex justify-between items-center py-1.5 border-t border-slate-100">
+            <div className="text-sm text-slate-600">Vence dia</div>
+            <input type="number" min="1" max="31" value={scVenc} onChange={e => setScVenc(parseInt(e.target.value) || 1)}
               className="w-16 bg-slate-50 border border-slate-200 rounded-lg p-2 text-center font-bold text-sm" />
           </div>
+          <button onClick={() => setScProx(v => !v)} className="w-full flex justify-between items-center py-1.5 border-t border-slate-100">
+            <div className="text-sm text-slate-600 text-left">Vence no mês seguinte</div>
+            <div className={`w-10 h-6 rounded-full relative transition-colors ${scProx ? 'bg-primary' : 'bg-slate-200'}`}>
+              <div className={`w-5 h-5 bg-white rounded-full absolute top-0.5 shadow transition-transform ${scProx ? 'translate-x-4' : 'translate-x-0.5'}`} />
+            </div>
+          </button>
+        </div>
+
+        {/* Nubank */}
+        <div className="bg-white border border-slate-200 rounded-xl p-3 mb-4">
+          <div className="text-sm font-bold mb-2.5 flex items-center gap-2">
+            <span className="w-2 h-2 rounded-full" style={{ background: '#8A05BE' }} />
+            Nubank Platinum
+          </div>
+          <div className="flex justify-between items-center py-1.5">
+            <div className="text-sm text-slate-600">Fecha dia</div>
+            <input type="number" min="1" max="31" value={nbFech} onChange={e => setNbFech(parseInt(e.target.value) || 1)}
+              className="w-16 bg-slate-50 border border-slate-200 rounded-lg p-2 text-center font-bold text-sm" />
+          </div>
+          <div className="flex justify-between items-center py-1.5 border-t border-slate-100">
+            <div className="text-sm text-slate-600">Vence dia</div>
+            <input type="number" min="1" max="31" value={nbVenc} onChange={e => setNbVenc(parseInt(e.target.value) || 1)}
+              className="w-16 bg-slate-50 border border-slate-200 rounded-lg p-2 text-center font-bold text-sm" />
+          </div>
+          <button onClick={() => setNbProx(v => !v)} className="w-full flex justify-between items-center py-1.5 border-t border-slate-100">
+            <div className="text-sm text-slate-600 text-left">Vence no mês seguinte</div>
+            <div className={`w-10 h-6 rounded-full relative transition-colors ${nbProx ? 'bg-primary' : 'bg-slate-200'}`}>
+              <div className={`w-5 h-5 bg-white rounded-full absolute top-0.5 shadow transition-transform ${nbProx ? 'translate-x-4' : 'translate-x-0.5'}`} />
+            </div>
+          </button>
         </div>
 
         <h3 className="text-[11px] uppercase tracking-widest text-slate-500 font-bold mb-2">Categorias</h3>

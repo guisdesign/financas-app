@@ -42,6 +42,10 @@ export interface Config {
   user_id: string
   fechamento_sicredi: number
   fechamento_nubank: number
+  vencimento_sicredi?: number
+  vencimento_nubank?: number
+  venc_proximo_sicredi?: boolean
+  venc_proximo_nubank?: boolean
   orcamento_default?: number
 }
 
